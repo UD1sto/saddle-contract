@@ -10,7 +10,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "./llUsd.sol";
 import "./OwnerPausableUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
-contract liquidLoans is OwnerPausableUpgradeable {
+contract LiquidLoans is OwnerPausableUpgradeable {
     using SafeMathUpgradeable for uint256;
 
     AggregatorV3Interface internal priceFeed1;
