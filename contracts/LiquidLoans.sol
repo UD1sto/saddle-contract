@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.12;
 
-
 import "./interfaces/ISwap.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./AggregatorV3Interface.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "./llUsd.sol";
+import "./LLUsd.sol";
 import "./OwnerPausableUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 contract LiquidLoans is OwnerPausableUpgradeable {
@@ -16,6 +15,7 @@ contract LiquidLoans is OwnerPausableUpgradeable {
     AggregatorV3Interface internal priceFeed1;
     AggregatorV3Interface internal priceFeed2;
     
+    event loanContract();
     event getloan(uint interest, uint amount, address recipient, uint lpLocked, uint _price1, uint _price2);
     event repayloan(uint amount, address payee, uint lpReleased);
 
@@ -25,7 +25,7 @@ contract LiquidLoans is OwnerPausableUpgradeable {
     address public lpAddress;
     address public swapAddress;
 
-    llUsd LLUsd;
+    LLUsd llUsd;
     
     address public usdA;
   
@@ -38,47 +38,29 @@ contract LiquidLoans is OwnerPausableUpgradeable {
 
     mapping (address => loanUtils) accounting;
 
-    function initialize(address price1A, address price2A, address lpA, address swapA, address llAddress, string calldata lpTokenName, string calldata lpTokenSymbol) initializer public {
-
+    function initialize(address price1A, address price2A, address _lpAddress, address _swapAddress, address llAddress) initializer public {
         priceFeed1 = AggregatorV3Interface(price1A);
-
         priceFeed2 = AggregatorV3Interface(price2A);
-
         treasury = 0xd744C8812362B9cEFe7D0D0198537F81841A9244;
+        lpAddress = _lpAddress;
+        swapAddress = _swapAddress;
 
         
-        lpAddress = lpA;
-        swapAddress = swapA;
 
+        llUsd = LLUsd(Clones.clone(llAddress));
         
-
-        llUsd LLUsd = llUsd(Clones.clone(llAddress));
-        require(
-            LLUsd.initialize(lpTokenName, lpTokenSymbol),
-            "could not init llToken clone"
-        );
-
-       
+        require(llUsd.initialize("test", "TST"),"could not init llToken clone");
+        usdA = address(llUsd);
         
-            
-        
-
-    }
-//should be initialized after "initialize" with the address of the llToken clone
-    function afterInit(address _UsdA) public onlyOwner {
-        usdA = _UsdA;
     }
 
-    
 /*@dev: mintAndLock is different for different implementations, in this implementation we assume that the pool
 contains two USD pegged assets, using this contract in a pool with more than two assets or one where the assets
 are not USD pegged might introduce serious issues and vulnerabilities*/
        
     function mintAndLock (uint256 amount, address pool) public {
-
         require (amount > 0, "amount must be greater than 0");
 
-        
         uint256 [] memory tokenArray = ISwap(swapAddress).calculateRemoveLiquidity(amount);
         uint256 balanceA = tokenArray[1];
         uint256 balanceB = tokenArray[2];
@@ -93,16 +75,14 @@ are not USD pegged might introduce serious issues and vulnerabilities*/
         uint256 usdInterest = usdPrice.div(1000);
         uint256 usdPaid = usdPrice.sub(usdInterest);
         
-     
-       
         IERC20Upgradeable(lpAddress).approve(address(this), amount);
         IERC20Upgradeable(lpAddress).transferFrom(msg.sender, address(this), amount);
         
 //mint on spot, need to protect the erc20 contract
         accounting[msg.sender].owedBalance = usdPaid;
         accounting[msg.sender].lpLocked = amount;
-        LLUsd.mint(treasury, usdInterest);
-        LLUsd.mint(msg.sender, usdPaid);
+        llUsd.mint(treasury, usdInterest);
+        llUsd.mint(msg.sender, usdPaid);
        
 
         emit getloan(usdInterest, usdPaid, msg.sender, amount, a, b);
@@ -119,7 +99,7 @@ are not USD pegged might introduce serious issues and vulnerabilities*/
             uint256 LpToRelease = amount.mul(analogy);
             accounting[msg.sender].owedBalance = accounting[msg.sender].owedBalance.sub(amount);
             accounting[msg.sender].lpLocked = accounting[msg.sender].lpLocked.sub(LpToRelease);
-            LLUsd.burn(amount);
+            llUsd.burn(amount);
 
             emit repayloan(amount, msg.sender, LpToRelease);
         } else if (token == 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48) { 
@@ -157,10 +137,8 @@ are not USD pegged might introduce serious issues and vulnerabilities*/
         }
 
         }
-    
 
-
-    function getLatestPrice1() public view returns (int) {
+    function getLatestPrice1() public view returns (int) {     
         (
       uint80 roundId,
       int256 answer,

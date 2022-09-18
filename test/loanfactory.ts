@@ -1,43 +1,51 @@
 import chai from "chai"
 import { solidity } from "ethereum-waffle"
-import { BigNumber, Signer } from "ethers"
-import { solidityPack } from "ethers/lib/utils"
-import { deployments } from "hardhat"
+import { BigNumber, ContractFactory, Signer } from "ethers"
+import { solidityPack, formatBytes32String } from "ethers/lib/utils"
+import { deployments, ethers } from "hardhat"
+import { Address } from "hardhat-deploy/types"
 import {
-    Swap,
-    SwapDeployer,
-    SwapUtils,
-    GenericERC20,
-    LPToken,
-    SwapFlashLoan,
-    Loanfactory
+  Swap,
+  SwapDeployer,
+  SwapUtils,
+  GenericERC20,
+  LPToken,
+  SwapFlashLoan,
+  LoanFactory,
+  LLUsd,
+  LiquidLoans,
 } from "../build/typechain/"
 
 import {
-    asyncForEach,
-    forceAdvanceOneBlock,
-    getCurrentBlockTimestamp,
-    getPoolBalances,
-    getUserTokenBalance,
-    getUserTokenBalances,
-    MAX_UINT256,
-    setTimestamp,
-    TIME,
-  } from "./testUtils"
+  asyncForEach,
+  forceAdvanceOneBlock,
+  getCurrentBlockTimestamp,
+  getPoolBalances,
+  getUserTokenBalance,
+  getUserTokenBalances,
+  MAX_UINT256,
+  setTimestamp,
+  TIME,
+} from "./testUtils"
 
+const salts = [formatBytes32String('1'), formatBytes32String('2')]
 chai.use(solidity)
 const { expect } = chai
 
-describe("Swap Deployer", () => {
+describe("Loan Deployer", () => {
   let signers: Array<Signer>
+  let llusd: LPToken
+  let liquidloans: LiquidLoans
+  let loansClone1: LiquidLoans
+  let loansClone: Address
+  let loanfactory: ContractFactory
   let swap: Swap
   let swapClone: Swap
   let swapDeployer: SwapDeployer
   let swapUtils: SwapUtils
   let DAI: GenericERC20
   let USDC: GenericERC20
-  let USDT: GenericERC20
-  let SUSD: GenericERC20
+  let loanFactory: LoanFactory
   let swapToken: LPToken
   let owner: Signer
   let user1: Signer
@@ -46,6 +54,8 @@ describe("Swap Deployer", () => {
   let ownerAddress: string
   let user1Address: string
   let user2Address: string
+  const priceFeed1: Address = "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9" //DAI mainet priceFeed address
+  const priceFeed2: Address = "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6" //USDC mainet priceFeed address
   let swapStorage: {
     initialA: BigNumber
     futureA: BigNumber
@@ -87,10 +97,11 @@ describe("Swap Deployer", () => {
 
       DAI = await ethers.getContract("DAI")
       USDC = await ethers.getContract("USDC")
-      USDT = await ethers.getContract("USDT")
-      SUSD = await ethers.getContract("SUSD")
+      llusd = await ethers.getContract("LPToken")
+      loanfactory = await ethers.getContractFactory("LiquidLoans")
 
-      TOKENS.push(DAI, USDC, USDT, SUSD)
+
+      TOKENS.push(DAI, USDC)
 
       // Mint dummy tokens
       await asyncForEach(
@@ -98,19 +109,19 @@ describe("Swap Deployer", () => {
         async (address) => {
           await DAI.mint(address, String(1e20))
           await USDC.mint(address, String(1e8))
-          await USDT.mint(address, String(1e8))
-          await SUSD.mint(address, String(1e20))
+
         },
       )
 
       swap = await ethers.getContract("Swap")
+
       swapDeployer = await ethers.getContract("SwapDeployer")
       const lpToken = await ethers.getContract("LPToken")
 
       const swapCloneAddress = await swapDeployer.callStatic.deploy(
         swap.address,
-        [DAI.address, USDC.address, USDT.address, SUSD.address],
-        [18, 6, 6, 18],
+        [DAI.address, USDC.address],
+        [18, 6],
         LP_TOKEN_NAME,
         LP_TOKEN_SYMBOL,
         INITIAL_A_VALUE,
@@ -121,8 +132,8 @@ describe("Swap Deployer", () => {
 
       await swapDeployer.deploy(
         swap.address,
-        [DAI.address, USDC.address, USDT.address, SUSD.address],
-        [18, 6, 6, 18],
+        [DAI.address, USDC.address],
+        [18, 6],
         LP_TOKEN_NAME,
         LP_TOKEN_SYMBOL,
         INITIAL_A_VALUE,
@@ -145,28 +156,40 @@ describe("Swap Deployer", () => {
       await asyncForEach([owner, user1, user2, attacker], async (signer) => {
         await DAI.connect(signer).approve(swapClone.address, MAX_UINT256)
         await USDC.connect(signer).approve(swapClone.address, MAX_UINT256)
-        await USDT.connect(signer).approve(swapClone.address, MAX_UINT256)
-        await SUSD.connect(signer).approve(swapClone.address, MAX_UINT256)
+
       })
 
       // Populate the pool with initial liquidity
       await swapClone.addLiquidity(
-        [String(50e18), String(50e6), String(50e6), String(50e18)],
+        [String(50e18), String(50e6)],
         0,
         MAX_UINT256,
       )
 
       expect(await swapClone.getTokenBalance(0)).to.be.eq(String(50e18))
       expect(await swapClone.getTokenBalance(1)).to.be.eq(String(50e6))
-      expect(await swapClone.getTokenBalance(2)).to.be.eq(String(50e6))
-      expect(await swapClone.getTokenBalance(3)).to.be.eq(String(50e18))
+
       expect(await getUserTokenBalance(owner, swapToken)).to.be.eq(
-        String(200e18),
+        String(100e18),
       )
+
     },
   )
   beforeEach(async () => {
     await setupTest()
+
   })
+  describe("liquidloans", () => {
+
+
+    it("should deploy a new loan cotnract", async () => {
+      loansClone1 = (await loanfactory.deploy()) as LiquidLoans
+      loansClone1.initialize(llusd.address, swap.address, swapToken.address, priceFeed1, priceFeed2)
+      expect(loansClone1).to.exist;
+    })
+
+    })
+  });
+
 
   //here starts the liquid loan cotnract testing after a pool was succesfully initialized

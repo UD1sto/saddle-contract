@@ -11,6 +11,8 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 contract LoanFactory is OwnableUpgradeable{
 
     address immutable liquidLoansImplementation;
+
+    using Clones for address;
    
     event contractCreation(address cloneAddress, address manager);
 
@@ -19,14 +21,11 @@ contract LoanFactory is OwnableUpgradeable{
         
     }
 
-    function createLoanContract(address price1A, address price2A, address lpA, address swapA, address llAddress, string calldata lpTokenName, string calldata lpTokenSymbol) public onlyOwner{
-        address clone = Clones.clone(liquidLoansImplementation);
+    function createLoanContract(bytes32 salt, address price1A, address price2A, address lpA, address swapA, address llAddress) public {
+        address clone = Clones.cloneDeterministic(liquidLoansImplementation, salt);
         //address 
-        LiquidLoans(clone).initialize(price1A, price2A, lpA, swapA, llAddress, lpTokenName, lpTokenSymbol);
-        LiquidLoans(clone).transferOwnership(msg.sender);
+        LiquidLoans(clone).initialize(price1A, price2A, lpA, swapA, llAddress);
+    //    LiquidLoans(clone).transferOwnership(msg.sender);
         emit contractCreation(clone, msg.sender);
     }
-
-    
-
 }

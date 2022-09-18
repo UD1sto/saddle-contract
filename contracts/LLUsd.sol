@@ -12,7 +12,7 @@ import "./interfaces/ISwap.sol";
  * It is used to represent user's shares when providing liquidity to swap contracts.
  * @dev Only Swap contracts should initialize and own LPToken contracts.
  */
-contract llUsd is ERC20BurnableUpgradeable, OwnableUpgradeable {
+contract LLUsd is ERC20BurnableUpgradeable, OwnableUpgradeable {
     using SafeMathUpgradeable for uint256;
 
     /**

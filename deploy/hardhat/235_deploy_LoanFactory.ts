@@ -23,7 +23,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     } else {
         await deploy("LoanFactory", {
             from: deployer,
-            args: [liquidLoans],
+            args: [],
             log: true,
             skipIfAlreadyDeployed: true,
         });
