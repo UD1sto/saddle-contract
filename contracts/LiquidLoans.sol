@@ -58,7 +58,7 @@ contract LiquidLoans is OwnerPausableUpgradeable {
 contains two USD pegged assets, using this contract in a pool with more than two assets or one where the assets
 are not USD pegged might introduce serious issues and vulnerabilities*/
        
-    function mintAndLock (uint256 amount, address pool) public {
+    function mintAndLock (uint256 amount) public {
         require (amount > 0, "amount must be greater than 0");
 
         uint256 [] memory tokenArray = ISwap(swapAddress).calculateRemoveLiquidity(amount);

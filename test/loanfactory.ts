@@ -54,8 +54,8 @@ describe("Loan Deployer", () => {
   let ownerAddress: string
   let user1Address: string
   let user2Address: string
-  const priceFeed1: Address = "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9" //DAI mainet priceFeed address
-  const priceFeed2: Address = "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6" //USDC mainet priceFeed address
+  const priceFeed1: Address = "0x773616E4d11A78F511299002da57A0a94577F1f4" //DAI mainet priceFeed address
+  const priceFeed2: Address = "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4" //USDC mainet priceFeed address
   let swapStorage: {
     initialA: BigNumber
     futureA: BigNumber
@@ -179,17 +179,70 @@ describe("Loan Deployer", () => {
     await setupTest()
 
   })
-  describe("liquidloans", () => {
 
 
-    it("should deploy a new loan cotnract", async () => {
-      loansClone1 = (await loanfactory.deploy()) as LiquidLoans
-      loansClone1.initialize(llusd.address, swap.address, swapToken.address, priceFeed1, priceFeed2)
-      expect(loansClone1).to.exist;
-    })
+//try on existing saddle pools
+  it("deploys a new loan cotnract", async () => {
+    loansClone1 = (await loanfactory.deploy()) as LiquidLoans
+    loansClone1.initialize(priceFeed1, priceFeed2, swapToken.address, swap.address, llusd.address)
+    expect(loansClone1).to.exist;
+    expect(loansClone1.usdA).to.be.not.null;
+  })
 
-    })
-  });
+
+
+  it("gets a loan", async () => {
+    await loansClone1.connect(user1).mintAndLock(1);
+      
+  })
+
+  it("gets price from oracles", async () => {
+    const price1 = await loansClone1.getLatestPrice1();
+    const price2 = await loansClone1.getLatestPrice2();
+    expect(price1).to.be.not.null;
+    expect(price2).to.be.not.null;
+  })
+//test scope
+  it("updates the accounting parameters")
+
+  it("repays the loan in llusd")
+
+  it("repays the loan in usdc")
+
+  it("repays the loan in Frax")
+
+  it("emits the repayloan event")
+
+  it("transfers the lp tokens to contract")
+
+  it("calculates the interest correctly")
+
+  it("calculates the loan correctly")
+
+  it("locks the lp tokens")
+
+  it("locks the correct lp tokens")
+
+  it("distributes the fees to the contract")
+
+  it("burns the llUsd tokens")
+
+  it("releases lp tokens")
+  
+  it("calculates burn correctly")
+
+  it("accepts the correct token addresses")
+
+  it("emits repay event")
+
+  it("allows contract to cashout fees")
+
+  it("does not allow contract to misuse funds")
+ 
+
+});
 
 
   //here starts the liquid loan cotnract testing after a pool was succesfully initialized
+
+  //expect balance 

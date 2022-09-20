@@ -28,6 +28,9 @@ let config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
+      forking: {
+        url: "https://eth-mainnet.g.alchemy.com/v2/", //paste your alchemy key here
+      },
       deploy: ["./deploy/hardhat/"],
       autoImpersonate: true,
     },
