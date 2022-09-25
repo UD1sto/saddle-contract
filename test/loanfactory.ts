@@ -185,9 +185,9 @@ describe("Loan Deployer", async () => {
       loanToken = (await llTokenFactory.connect(owner).deploy()) as LLUsd
 
       await loanToken.deployed()
-      loansClone1.initialize(swapToken.address, swap.address, loanToken.address)
+      await loansClone1.connect(owner).initialize(swapToken.address, swap.address, loanToken.address)
 
-      await firstToken.connect(owner).transfer(loansClone1.address, sentValue)
+      await loanToken.connect(owner).transfer(loansClone1.address, sentValue)
 
 
       
@@ -211,6 +211,7 @@ describe("Loan Deployer", async () => {
     //need to initialize the contract
     
     expect((await loansClone1.lpAddress())).to.equal(swapToken.address)
+    expect((await loanToken.balanceOf(loansClone1.address))).to.equal(sentValue)
     
     //expect(loansClone1.usdA).to.be.not.null;
   })
@@ -227,7 +228,7 @@ describe("Loan Deployer", async () => {
     expect(actualPoolTokenAmount).to.eq(BigNumber.from("3991672211258372957"))
     await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
     await loansClone1.connect(user1).mintAndLock(BigNumber.from("3991672"))
-    expect ((await loanToken.balanceOf(impersonate1))).to.be.above(1)
+    expect ((await loanToken.balanceOf(user1Address))).to.be.above(1)
     // expect ((await loansClone1.accounting(impersonate1)).owedBalance).to.be.above(1)
     // expect ((await loansClone1.accounting(impersonate1)).lpLocked).to.be.above(1)
   })
