@@ -21,10 +21,10 @@ contract LoanFactory is OwnableUpgradeable{
         
     }
 
-    function createLoanContract(bytes32 salt, address price1A, address price2A, address lpA, address swapA, address llAddress) public {
+    function createLoanContract(bytes32 salt, address lpA, address swapA, address llAddress) public {
         address clone = Clones.cloneDeterministic(liquidLoansImplementation, salt);
         //address 
-        LiquidLoans(clone).initialize(price1A, price2A, lpA, swapA, llAddress);
+        LiquidLoans(clone).initialize(lpA, swapA, llAddress);
     //    LiquidLoans(clone).transferOwnership(msg.sender);
         emit contractCreation(clone, msg.sender);
     }

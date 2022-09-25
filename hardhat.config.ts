@@ -28,10 +28,10 @@ let config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      forking: {
-        url: "https://eth-mainnet.g.alchemy.com/v2/NhFdK_351C-ir_rblCa4Zzx3h_eivmYw", //paste your alchemy key here
-        blockNumber: 15605576, 
-      },
+      // forking: {
+      //   url: "https://eth-mainnet.g.alchemy.com/v2/", //paste your alchemy key here
+      //   blockNumber: 15605576, 
+      // },
       deploy: ["./deploy/hardhat/"],
       autoImpersonate: true,
     },

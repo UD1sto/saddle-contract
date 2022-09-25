@@ -2,46 +2,16 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20BurnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "./interfaces/ISwap.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-/**
- * @title Liquidity Provider Token
- * @notice This token is an ERC20 detailed token with added capability to be minted by the owner.
- * It is used to represent user's shares when providing liquidity to swap contracts.
- * @dev Only Swap contracts should initialize and own LPToken contracts.
- */
-contract LLUsd is ERC20BurnableUpgradeable, OwnableUpgradeable {
-    using SafeMathUpgradeable for uint256;
 
-    /**
-     * @notice Initializes this LPToken contract with the given name and symbol
-     * @dev The caller of this function will become the owner. A Swap contract should call this
-     * in its initializer function.
-     * @param name name of this token
-     * @param symbol symbol of this token
-     */
-    function initialize(string memory name, string memory symbol)
-        external
-        initializer
-        returns (bool)
-    {
-        __Context_init_unchained();
-        __ERC20_init_unchained(name, symbol);
-        __Ownable_init_unchained();
-        return true;
+contract LLUsd is ERC20Burnable, Ownable {
+    using SafeMath for uint256;
+
+    constructor() public ERC20("Liquid Loans USD", "LLUSD") {
+        _mint(msg.sender, 100000 * 10 ** 18);
     }
 
-    /**
-     * @notice Mints the given amount of LPToken to the recipient.
-     * @dev only owner can call this mint function
-     * @param recipient address of account to receive the tokens
-     * @param amount amount of tokens to mint
-     */
-    function mint(address recipient, uint256 amount) external onlyOwner {
-        require(amount != 0, "llToken: cannot mint 0");
-        _mint(recipient, amount);
-    }
-
+    
 }

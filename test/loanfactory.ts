@@ -7,11 +7,16 @@ import { deployments, ethers } from "hardhat"
 import { Address } from "hardhat-deploy/types"
 import {
   
-  LPToken,
+  
   LoanFactory,
   LLUsd,
   LiquidLoans,
   PriceConsumerV3,
+  GenericERC20,
+  LPToken,
+  Swap,
+  SwapUtils,
+  TestSwapReturnValues,
 } from "../build/typechain/"
 import {
   asyncForEach,
@@ -39,411 +44,14 @@ const { expect } = chai
 
 describe("Loan Deployer", async () => {
 
-  const abi = [
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "owner",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
-            }
-        ],
-        "name": "Approval",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "previousOwner",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "newOwner",
-                "type": "address"
-            }
-        ],
-        "name": "OwnershipTransferred",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "from",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
-            }
-        ],
-        "name": "Transfer",
-        "type": "event"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "owner",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            }
-        ],
-        "name": "allowance",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "approve",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            }
-        ],
-        "name": "balanceOf",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "burn",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "burnFrom",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [
-            {
-                "internalType": "uint8",
-                "name": "",
-                "type": "uint8"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "subtractedValue",
-                "type": "uint256"
-            }
-        ],
-        "name": "decreaseAllowance",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "addedValue",
-                "type": "uint256"
-            }
-        ],
-        "name": "increaseAllowance",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "string",
-                "name": "name",
-                "type": "string"
-            },
-            {
-                "internalType": "string",
-                "name": "symbol",
-                "type": "string"
-            }
-        ],
-        "name": "initialize",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "mint",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "name",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "owner",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "renounceOwnership",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "totalSupply",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "sender",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "recipient",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "transferFrom",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "newOwner",
-                "type": "address"
-            }
-        ],
-        "name": "transferOwnership",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-]
-  let signers: Array<Signer>
+
   let impersonateSinger: Signer
   
   let llusd: LLUsd
   let liquidloans: LiquidLoans
   let loansClone1: LiquidLoans
   let loansClone: Address
-  let firstToken: LLUsd
+  let loanToken: LLUsd
   let loanFactory: ContractFactory
   let llTokenFactory: ContractFactory
   let priceFactory: ContractFactory
@@ -463,14 +71,34 @@ describe("Loan Deployer", async () => {
   const lpAddress: string = "0x927E6f04609A45B107C789aF34BA90Ebbf479f7f"
   const impersonate1: string = "0xAcF01994330A01C9de6c282BCF6c62231AbCf8E4"
   let lpContract: LPToken
+  const sentValue: BigNumber = BigNumber.from("1000000000000000000")
+  const depositPayValue: BigNumber = BigNumber.from("10000")
+  let signers: Array<Signer>
+  let swap: Swap
+  let testSwapReturnValues: TestSwapReturnValues
+  let swapUtils: SwapUtils
+  let firstToken: GenericERC20
+  let secondToken: GenericERC20
+  let swapToken: LPToken
+  let swapStorage: {
+    initialA: BigNumber
+    futureA: BigNumber
+    initialATime: BigNumber
+    futureATime: BigNumber
+    swapFee: BigNumber
+    adminFee: BigNumber
+    lpToken: string
+  }
+  const INITIAL_A_VALUE = 50
+  const SWAP_FEE = 1e7
+  const LP_TOKEN_NAME = "Test LP Token Name"
+  const LP_TOKEN_SYMBOL = "TESTLP"
   
 
   const setupTest = deployments.createFixture(
     async ({ deployments, ethers }) => {
       const { get } = deployments
       await deployments.fixture()
-      // await helpers.impersonateAccount(impersonate1)
-      // const impersonateSinger = await ethers.getSigner(impersonate1);
       
       signers = await ethers.getSigners()
       owner = signers[0]
@@ -482,21 +110,88 @@ describe("Loan Deployer", async () => {
       ownerAddress = await owner.getAddress()
       user1Address = await user1.getAddress()
       user2Address = await user2.getAddress()
-      llTokenFactory = await ethers.getContractFactory("LLUsd")
-      firstToken = (await llTokenFactory.deploy()) as LLUsd
 
-      await firstToken.deployed()
+      const erc20Factory = await ethers.getContractFactory("GenericERC20")
 
-      firstToken.initialize("ll", "llUSD")
-      
+      firstToken = (await erc20Factory.deploy(
+        "First Token",
+        "FIRST",
+        "18",
+      )) as GenericERC20
+
+      secondToken = (await erc20Factory.deploy(
+        "Second Token",
+        "SECOND",
+        "18",
+      )) as GenericERC20
+
+      // Mint dummy tokens
+      await asyncForEach([owner, user1, user2], async (signer) => {
+        const address = await signer.getAddress()
+        await firstToken.mint(address, String(1e20))
+        await secondToken.mint(address, String(1e20))
+      })
+
+      // Get Swap contract
+      swap = await ethers.getContract("Swap")
+
+      await swap.initialize(
+        [firstToken.address, secondToken.address],
+        [18, 18],
+        LP_TOKEN_NAME,
+        LP_TOKEN_SYMBOL,
+        INITIAL_A_VALUE,
+        SWAP_FEE,
+        0,
+        (
+          await get("LPToken")
+        ).address,
+      )
+
+      expect(await swap.getVirtualPrice()).to.be.eq(0)
+
+      swapStorage = await swap.swapStorage()
+
+      swapToken = (await ethers.getContractAt(
+        "LPToken",
+        swapStorage.lpToken,
+      )) as LPToken
+
+      const testSwapReturnValuesFactory = await ethers.getContractFactory(
+        "TestSwapReturnValues",
+      )
+      testSwapReturnValues = (await testSwapReturnValuesFactory.deploy(
+        swap.address,
+        swapToken.address,
+        2,
+      )) as TestSwapReturnValues
+
+      await asyncForEach([owner, user1, user2], async (signer) => {
+        await firstToken.connect(signer).approve(swap.address, MAX_UINT256)
+        await secondToken.connect(signer).approve(swap.address, MAX_UINT256)
+        await swapToken.connect(signer).approve(swap.address, MAX_UINT256)
+      })
+
+      await swap.addLiquidity([String(1e18), String(1e18)], 0, MAX_UINT256)
+
+      expect(await firstToken.balanceOf(swap.address)).to.eq(String(1e18))
+      expect(await secondToken.balanceOf(swap.address)).to.eq(String(1e18))
+            
       loanFactory = await ethers.getContractFactory("LiquidLoans", owner)
       loansClone1 = (await loanFactory.deploy()) as LiquidLoans
       await loansClone1.deployed()
       expect(loansClone1.address).to.exist
-      loansClone1.initialize(priceFeed1, priceFeed2, lpAddress, poolAddress, firstToken.address)
+      llTokenFactory = await ethers.getContractFactory("LLUsd")
+      loanToken = (await llTokenFactory.connect(owner).deploy()) as LLUsd
 
-      // lpContract = new ethers.Contract("0x927E6f04609A45B107C789aF34BA90Ebbf479f7f", "LPToken")
-      lpContract = await ethers.getContractAt(abi, "0x927E6f04609A45B107C789aF34BA90Ebbf479f7f")
+      await loanToken.deployed()
+      loansClone1.initialize(swapToken.address, swap.address, loanToken.address)
+
+      await firstToken.connect(owner).transfer(loansClone1.address, sentValue)
+
+
+      
+     
     },
   )
   
@@ -515,27 +210,33 @@ describe("Loan Deployer", async () => {
   it("verifies new loan cotnract", async () => {
     //need to initialize the contract
     
-    expect((await loansClone1.lpAddress())).to.equal(lpAddress)
-    expect ((await loansClone1.connect(owner).getLatestPrice())).to.be.not.null
+    expect((await loansClone1.lpAddress())).to.equal(swapToken.address)
+    
     //expect(loansClone1.usdA).to.be.not.null;
   })
 
-  it("gets price from oracles", async () => {
-    expect ((await loansClone1.connect(owner).getLatestPrice())).to.be.not.null
-    expect ((await loansClone1.connect(owner).getLatestPrice2())).to.be.not.null 
-  })
-
-
-
-
-  it("does not get a loan", async () => {
-    await expect ((loansClone1.connect(user1).mintAndLock(1))).to.be.reverted
+//   it("does not get a loan", async () => {
+//     await expect ((loansClone1.connect(await impersonateAccount(impersonate1)).mintAndLock(depositPayValue))).to.be.reverted
       
-  })
+//   })
 
   it("gets a loan", async () => {
-    await lpContract.connect(await impersonateAccount(impersonate1)).approve(loansClone1.address, MAX_UINT256)
-    await loansClone1.connect(await impersonateAccount(impersonate1)).mintAndLock(1)
+    await swap.connect(user1).addLiquidity([String(1e18), String(3e18)], 0, MAX_UINT256)
+
+    const actualPoolTokenAmount = await swapToken.balanceOf(user1Address)
+    expect(actualPoolTokenAmount).to.eq(BigNumber.from("3991672211258372957"))
+    await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
+    await loansClone1.connect(user1).mintAndLock(BigNumber.from("3991672"))
+    expect ((await loanToken.balanceOf(impersonate1))).to.be.above(1)
+    // expect ((await loansClone1.accounting(impersonate1)).owedBalance).to.be.above(1)
+    // expect ((await loansClone1.accounting(impersonate1)).lpLocked).to.be.above(1)
+  })
+
+  it("can repay the loan", async () => {
+    await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
+    await loansClone1.connect(user1).mintAndLock(BigNumber.from("3991672"))
+    expect ((await loansClone1.accounting(user1Address)).owedBalance).to.be.above(1)
+    await loansClone1.connect(user1).burnAndUnlock(loanToken.address, BigNumber.from("3991672"))
   })
 
   
