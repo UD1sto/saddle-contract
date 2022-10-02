@@ -5,6 +5,7 @@ import { solidityPack, formatBytes32String } from "ethers/lib/utils"
 import { deployments, ethers } from "hardhat"
 
 import { Address } from "hardhat-deploy/types"
+import { string } from "hardhat/internal/core/params/argumentTypes"
 import {
   
   
@@ -125,6 +126,8 @@ describe("Loan Deployer", async () => {
         "18",
       )) as GenericERC20
 
+      const poolTokens = [firstToken.address, secondToken.address]
+
       // Mint dummy tokens
       await asyncForEach([owner, user1, user2], async (signer) => {
         const address = await signer.getAddress()
@@ -172,10 +175,10 @@ describe("Loan Deployer", async () => {
         await swapToken.connect(signer).approve(swap.address, MAX_UINT256)
       })
 
-      await swap.addLiquidity([String(1e18), String(1e18)], 0, MAX_UINT256)
+      await swap.addLiquidity([String(100e18), String(100e18)], 0, MAX_UINT256)
 
-      expect(await firstToken.balanceOf(swap.address)).to.eq(String(1e18))
-      expect(await secondToken.balanceOf(swap.address)).to.eq(String(1e18))
+      expect(await firstToken.balanceOf(swap.address)).to.eq(String(100e18))
+      expect(await secondToken.balanceOf(swap.address)).to.eq(String(100e18))
             
       loanFactory = await ethers.getContractFactory("LiquidLoans", owner)
       loansClone1 = (await loanFactory.deploy()) as LiquidLoans
@@ -185,9 +188,20 @@ describe("Loan Deployer", async () => {
       loanToken = (await llTokenFactory.connect(owner).deploy()) as LLUsd
 
       await loanToken.deployed()
-      await loansClone1.connect(owner).initialize(swapToken.address, swap.address, loanToken.address)
+      await loansClone1.connect(owner).initialize(swapToken.address, swap.address, loanToken.address, poolTokens)
 
-      await loanToken.connect(owner).transfer(loansClone1.address, sentValue)
+      await loanToken.connect(owner).transfer(loansClone1.address, String(100e18))
+
+      await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
+
+      await loanToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
+
+      await swapToken.connect(user2).approve(loansClone1.address, MAX_UINT256)
+
+      await loanToken.connect(user2).approve(loansClone1.address, MAX_UINT256) 
+
+      await swap.connect(user1).addLiquidity([String(100e18), String(100e18)], 0, MAX_UINT256)
+      await swap.connect(user2).addLiquidity([String(100e18), String(100e18)], 0, MAX_UINT256)
 
 
       
@@ -206,84 +220,60 @@ describe("Loan Deployer", async () => {
   
   
 
-//try on existing saddle pools
   it("verifies new loan cotnract", async () => {
-    //need to initialize the contract
-    
     expect((await loansClone1.lpAddress())).to.equal(swapToken.address)
-    expect((await loanToken.balanceOf(loansClone1.address))).to.equal(sentValue)
-    
-    //expect(loansClone1.usdA).to.be.not.null;
+    expect((await loanToken.balanceOf(loansClone1.address))).to.equal(String(100e18))
   })
 
-//   it("does not get a loan", async () => {
-//     await expect ((loansClone1.connect(await impersonateAccount(impersonate1)).mintAndLock(depositPayValue))).to.be.reverted
-      
-//   })
+  it("reverts if attacker claims loan", async () => {
+    await expect ((loansClone1.connect(attacker).mintAndLock(1e18))).to.be.reverted
+  })
 
-  it("gets a loan", async () => {
-    await swap.connect(user1).addLiquidity([String(1e18), String(3e18)], 0, MAX_UINT256)
-
+  it("gets a loan and repay partially", async () => {
     const actualPoolTokenAmount = await swapToken.balanceOf(user1Address)
-    expect(actualPoolTokenAmount).to.eq(BigNumber.from("3991672211258372957"))
-    await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
-    await loansClone1.connect(user1).mintAndLock(BigNumber.from("3991672"))
-    expect ((await loanToken.balanceOf(user1Address))).to.be.above(1)
-    // expect ((await loansClone1.accounting(impersonate1)).owedBalance).to.be.above(1)
-    // expect ((await loansClone1.accounting(impersonate1)).lpLocked).to.be.above(1)
+    expect(actualPoolTokenAmount).to.eq(String(200e18))
+    await loansClone1.connect(user1).mintAndLock(String(50e18))
+    expect ((await loanToken.balanceOf(user1Address))).to.equal(String(40e18))
+    expect((await loanToken.balanceOf(loansClone1.address))).to.equal(String(60e18))
+    await loansClone1.connect(user1).burnAndUnlock(loanToken.address, String(30e18))
+    expect((await loanToken.balanceOf(user1Address))).to.equal(String(16e18))
   })
 
-  it("can repay the loan", async () => {
-    await swapToken.connect(user1).approve(loansClone1.address, MAX_UINT256)
-    await loansClone1.connect(user1).mintAndLock(BigNumber.from("3991672"))
-    expect ((await loansClone1.accounting(user1Address)).owedBalance).to.be.above(1)
-    await loansClone1.connect(user1).burnAndUnlock(loanToken.address, BigNumber.from("3991672"))
+  it("gets a loan and repay fully", async () => {
+    await loansClone1.connect(user1).mintAndLock(String(50e18))
+    await loansClone1.connect(user1).burnAndUnlock(loanToken.address, String(50e18))
+    expect((await loanToken.balanceOf(user1Address))).to.equal(0)
   })
 
-  
-//test scope
-  // it("updates the accounting parameters")
+  it("updates accounting info correctly", async () => {
+    await loansClone1.connect(user1).mintAndLock(String(50e18))
+    expect ((await loansClone1.accounting(user1Address)).owedBalance).to.equal(String(40e18))
+    expect ((await loansClone1.accounting(user1Address)).lpLocked).to.equal(String(50e18))
+    await loansClone1.connect(user1).burnAndUnlock(loanToken.address, String(50e18))
+    expect ((await loansClone1.accounting(user1Address)).lpLocked).to.equal(0)
+    expect ((await loansClone1.accounting(user1Address)).owedBalance).to.equal(0)
+  })
 
-  // it("repays the loan in llusd")
+  it("repays loan in pool token currency", async () => {
+    await loansClone1.connect(user1).mintAndLock(String(50e18))
+    await loansClone1.connect(user1).burnAndUnlock(firstToken.address, String(50e18))
+    expect((await loanToken.balanceOf(user1Address))).to.equal(0)
+    expect ((await loansClone1.accounting(user1Address)).lpLocked).to.equal(0)
+    expect ((await loansClone1.accounting(user1Address)).owedBalance).to.equal(0)
+    await loansClone1.connect(user2).mintAndLock(String(50e18))
+    await loansClone1.connect(user2).burnAndUnlock(secondToken.address, String(50e18))
+    expect ((await loansClone1.accounting(user2Address)).lpLocked).to.equal(0)
+    expect ((await loansClone1.accounting(user2Address)).owedBalance).to.equal(0)
+  })
 
-  // it("repays the loan in usdc")
+  it("allows contract to cashout fees", async () => {
+    await loansClone1.connect(user1).mintAndLock(String(50e18))
+    expect ((await swapToken.balanceOf(loansClone1.address))).to.be.above(0)
+    await loansClone1.connect(owner).withdrawFees()
+    expect ((await swapToken.balanceOf(loansClone1.address))).to.equal(0)
 
-  // it("repays the loan in Frax")
-
-  // it("emits the repayloan event")
-
-  // it("transfers the lp tokens to contract")
-
-  // it("calculates the interest correctly")
-
-  // it("calculates the loan correctly")
-
-  // it("locks the lp tokens")
-
-  // it("locks the correct lp tokens")
-
-  // it("distributes the fees to the contract")
-
-  // it("burns the llUsd tokens")
-
-  // it("releases lp tokens")
-  
-  // it("calculates burn correctly")
-
-  // it("accepts the correct token addresses")
-
-  // it("emits repay event")
-
-  // it("allows contract to cashout fees")
-
-  // it("does not allow contract to misuse funds")
- 
+  })
 
 });
-
-
-  //here starts the liquid loan cotnract testing after a pool was succesfully initialized
-
-  //expect balance 
 
   

@@ -7,19 +7,16 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 import "./LLUsd.sol";
 import "./OwnerPausableUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./console.sol";
 contract LiquidLoans is OwnerPausableUpgradeable {
     using SafeMath for uint256;
-
-    // AggregatorV3Interface internal priceFeed;
-    // AggregatorV3Interface internal priceFeed2;
     
     event loanContract();
-    event getloan(uint interest, uint amount, address recipient, uint lpLocked, uint _price1, uint _price2);
+    event getloan(uint interest, uint amount, address recipient, uint lpLocked);
     event repayloan(uint amount, address payee, uint lpReleased);
 
 //those are placeholders for the real values
@@ -31,6 +28,10 @@ contract LiquidLoans is OwnerPausableUpgradeable {
     LLUsd llUsd;
     
     address public usdA;
+    address public tokenA;
+    address public tokenB;
+    
+    
   
 
     struct loanUtils {
@@ -38,124 +39,81 @@ contract LiquidLoans is OwnerPausableUpgradeable {
         uint256 lpLocked;
     }
 
-
     mapping (address => loanUtils) public accounting;
 
-    function initialize(address _lpAddress, address _swapAddress, address llAddress) initializer public {
-        // priceFeed = AggregatorV3Interface(price1A);
-        // priceFeed2 = AggregatorV3Interface(price2A);
+    function initialize(address _lpAddress, address _swapAddress, address llAddress, address [] calldata tokens) initializer public {  
+        __Ownable_init();
+        swapAddress = _swapAddress;
+    
+        if (ISwap(swapAddress).getTokenIndex(tokens[0]) == 0
+        && ISwap(swapAddress).getTokenIndex(tokens[1]) == 1) {
+            tokenA = tokens[0];
+            tokenB = tokens[1];     
+        }
+        else {
+            revert();
+        }
+        //placeholder address
         treasury = 0xd744C8812362B9cEFe7D0D0198537F81841A9244;
         lpAddress = _lpAddress;
-        swapAddress = _swapAddress;
-        usdA = llAddress;
-        
+        usdA = llAddress;       
     }
-
-    // function getLatestPrice() public view returns (int) {
-    //     (
-    //         uint80 roundID, 
-    //         int price,
-    //         uint startedAt,
-    //         uint timeStamp,
-    //         uint80 answeredInRound
-    //     ) = priceFeed.latestRoundData();
-    //     // If the round is not complete yet, timestamp is 0
-    //     require(timeStamp > 0, "Round not complete");
-    //     return price;
-    // }
-
-    // function getLatestPrice2() public view returns (int) {
-    //     (
-    //   uint80 roundId,
-    //   int256 answer,
-    //   uint256 startedAt,
-    //   uint256 updatedAt,
-    //   uint80 answeredInRound
-    //     ) = priceFeed2.latestRoundData();
-    //  }
-
     
 /*@dev: mintAndLock is different for different implementations, in this implementation we assume that the pool
 contains two USD pegged assets, using this contract in a pool with more than two assets or one where the assets
 are not USD pegged might introduce serious issues and vulnerabilities*/
     
-    function mintAndLock (uint256 amount) public {
+    function mintAndLock (uint256 amount) external {
         require (amount > 0, "amount must be greater than 0");
         
+        
+        //extracts fee updates amount
+        uint256 interest = amount.div(1000);
+
         uint256 [] memory tokenArray = ISwap(swapAddress).calculateRemoveLiquidity(amount);
         uint256 balanceA = tokenArray[0];
         uint256 balanceB = tokenArray[1];
-
-        uint256 a = 1;
-        uint256 b = 1;
      
-        uint256 usdPrice = a.mul(balanceA).add(b).mul(balanceB).div(5).mul(4);
-        uint256 usdInterest = usdPrice.div(1000);
-        uint256 usdPaid = usdPrice.sub(usdInterest);
+        uint256 usdPaid = balanceA.add(balanceB).div(5).mul(4);
         
         IERC20Upgradeable(lpAddress).approve(address(this), amount);
         IERC20Upgradeable(lpAddress).transferFrom(msg.sender, address(this), amount);
+        IERC20Upgradeable(lpAddress).transferFrom(msg.sender, treasury, interest);
         
         accounting[msg.sender].owedBalance = usdPaid;
         accounting[msg.sender].lpLocked = amount;
-        IERC20(usdA).transfer(treasury, usdInterest); //error here
         IERC20(usdA).transfer(msg.sender, usdPaid);
        
-
-        emit getloan(usdInterest, usdPaid, msg.sender, amount, a, b);
-        
-
+        emit getloan(interest, usdPaid, msg.sender, amount);
     }
 
-    function burnAndUnlock (address token, uint256 amount) public {
-       
+    function burnAndUnlock (address token, uint256 amount) external {
+        require (amount != 0, "amount must be greater than 0");
+        require (token != address(0), "token address must be valid");
+        require  (accounting[msg.sender].lpLocked >= amount, "amount must be less than or equal to owed balance");
         
+        // uint256 analogy = accounting[msg.sender].lpLocked.div(accounting[msg.sender].owedBalance);
 
-        uint256 analogy = accounting[msg.sender].lpLocked.div(accounting[msg.sender].owedBalance);
-
-        if (token == usdA) {
-            uint256 LpToRelease = amount.mul(analogy);
-            accounting[msg.sender].owedBalance = accounting[msg.sender].owedBalance.sub(amount);
-            accounting[msg.sender].lpLocked = accounting[msg.sender].lpLocked.sub(LpToRelease);
-            llUsd.burn(amount);
-
-            emit repayloan(amount, msg.sender, LpToRelease);
-        } else if (token == 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48) { 
-            int256 usdPrice = 1;
-            uint256 uPrice = uint(usdPrice);
-            uint256 converted = amount.mul(uPrice);
-            uint256 LpToRelease = converted.mul(analogy);
+        if (token == usdA || token == tokenA || token == tokenB) {
+            uint256 usdToBurn = amount.div(5).mul(4);
+            accounting[msg.sender].owedBalance -= usdToBurn;
+            ERC20Burnable(usdA).burnFrom(msg.sender, usdToBurn);
+            accounting[msg.sender].lpLocked -= amount;
+            IERC20Upgradeable(lpAddress).transfer(msg.sender, amount);
             
-            accounting[msg.sender].owedBalance = accounting[msg.sender].owedBalance.sub(converted);
-            accounting[msg.sender].lpLocked = accounting[msg.sender].lpLocked.sub(LpToRelease);
-
-            IERC20(token).transfer(address(this), converted);
-            IERC20(lpAddress).transfer(msg.sender, LpToRelease);
-
-            emit repayloan(converted, msg.sender, LpToRelease);
-        }
-
-        else if (token == 0x5592EC0cfb4dbc12D3aB100b257153436a1f0FEa) {
-            int256 usdPrice = 1;
-            uint256 uPrice = uint(usdPrice);
-            uint256 converted = amount.mul(uPrice);
-            uint256 LpToRelease = converted.mul(analogy);
-            
-            accounting[msg.sender].owedBalance = accounting[msg.sender].owedBalance.sub(converted);
-            accounting[msg.sender].lpLocked = accounting[msg.sender].lpLocked.sub(LpToRelease);
-
-            IERC20(token).transfer(address(this), converted);
-            IERC20(lpAddress).transfer(msg.sender, LpToRelease);
-            
-            emit repayloan(converted, msg.sender, LpToRelease);
-            
-        }
-
+        
+            emit repayloan(usdToBurn, msg.sender, amount);
+        } 
+        
         else {
             revert();
         }
 
         }
+
+    function withdrawFees() external onlyOwner {
+        IERC20Upgradeable(lpAddress).transfer(treasury, IERC20Upgradeable(lpAddress).balanceOf(address(this)));
+    }
 
 }
 
