@@ -266,14 +266,6 @@ describe("Loan Deployer", async () => {
     expect ((await loansClone1.accounting(user2Address)).owedBalance).to.equal(0)
   })
 
-  it("allows contract to cashout fees", async () => {
-    await loansClone1.connect(user1).mintAndLock(String(50e18))
-    expect ((await swapToken.balanceOf(loansClone1.address))).to.be.above(0)
-    await loansClone1.connect(owner).withdrawFees()
-    expect ((await swapToken.balanceOf(loansClone1.address))).to.equal(0)
-
-  })
-
 });
 
   
